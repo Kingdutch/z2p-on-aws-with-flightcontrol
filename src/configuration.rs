@@ -95,7 +95,7 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .try_into()
         .expect("Failed to parse APP_ENVIRONMENT.");
     let environment_filename = format!("{}.yaml", environment.as_str());
-    let settings = config::Config::builder()
+    let mut config_builder = config::Config::builder()
         .add_source(config::File::from(
             configuration_directory.join("base.yaml"),
         ))
@@ -108,8 +108,14 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
             config::Environment::with_prefix("APP")
                 .prefix_separator("_")
                 .separator("__"),
-        )
-        .build()?;
+        );
+
+    // Allow PORT to override APPLICATION_PORT
+    if let Ok(port) = std::env::var("PORT") {
+        config_builder = config_builder.set_override("application.port", port).expect("Could not set port from PORT env variable");
+    }
+
+    let settings = config_builder.build()?;
 
     settings.try_deserialize::<Settings>()
 }
