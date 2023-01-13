@@ -2,9 +2,10 @@ use crate::domain::SubscriberEmail;
 use crate::email_client::EmailClient;
 use secrecy::{ExposeSecret, Secret};
 use serde_aux::field_attributes::deserialize_number_from_string;
-use sqlx::postgres::{PgConnectOptions, PgSslMode};
+use sqlx::postgres::{PgConnectOptions};
 use sqlx::ConnectOptions;
 use std::convert::{TryFrom, TryInto};
+use std::str::FromStr;
 
 #[derive(serde::Deserialize, Clone)]
 pub struct Settings {
@@ -25,32 +26,29 @@ pub struct ApplicationSettings {
 
 #[derive(serde::Deserialize, Clone)]
 pub struct DatabaseSettings {
-    pub username: String,
-    pub password: Secret<String>,
-    #[serde(deserialize_with = "deserialize_number_from_string")]
-    pub port: u16,
-    pub host: String,
-    pub database_name: String,
-    pub require_ssl: bool,
+    pub uri: Secret<String>,
+    pub database_name: Option<String>,
 }
 
 impl DatabaseSettings {
     pub fn without_db(&self) -> PgConnectOptions {
-        let ssl_mode = if self.require_ssl {
-            PgSslMode::Require
-        } else {
-            PgSslMode::Prefer
-        };
-        PgConnectOptions::new()
-            .host(&self.host)
-            .username(&self.username)
-            .password(self.password.expose_secret())
-            .port(self.port)
-            .ssl_mode(ssl_mode)
+        let options = PgConnectOptions::from_str(self.uri.expose_secret()).expect("Could not parse database URI");
+        if options.get_database().is_some() {
+            panic!("A database was provided in the URI but this should not happen in this environment, move the name to the database_name field instead.");
+        }
+        options
     }
 
     pub fn with_db(&self) -> PgConnectOptions {
-        let mut options = self.without_db().database(&self.database_name);
+        let mut options = PgConnectOptions::from_str(self.uri.expose_secret()).expect("Could not parse database URI");
+        if options.get_database().is_none() {
+            if let Some(database_name) = &self.database_name {
+                options = options.database(&database_name)
+            }
+            else {
+                panic!("No database was specified in the URI and none was specified in the database_name setting either.");
+            }
+        };
         options.log_statements(tracing::log::LevelFilter::Trace);
         options
     }

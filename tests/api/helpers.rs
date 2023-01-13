@@ -188,7 +188,7 @@ pub async fn spawn_app() -> TestApp {
     let configuration = {
         let mut c = get_configuration().expect("Failed to read configuration.");
         // Use a different database for each test case
-        c.database.database_name = Uuid::new_v4().to_string();
+        c.database.database_name = Some(Uuid::new_v4().to_string());
         // Use a random OS port
         c.application.port = 0;
         // Use the mock server as email API
@@ -233,7 +233,7 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .await
         .expect("Failed to connect to Postgres");
     connection
-        .execute(&*format!(r#"CREATE DATABASE "{}";"#, config.database_name))
+        .execute(&*format!(r#"CREATE DATABASE "{}";"#, config.database_name.as_ref().expect("Expected database name to be set during testing")))
         .await
         .expect("Failed to create database.");
 
