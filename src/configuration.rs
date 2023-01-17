@@ -115,6 +115,11 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         config_builder = config_builder.set_override("application.port", port).expect("Could not set port from PORT env variable");
     }
 
+    // Allow FC_URL to override APPLICATION__BASE_URL
+    if let Ok(base_url) = std::env::var("FC_URL") {
+        config_builder = config_builder.set_override("application.base_url", base_url).expect("Could not set base_url from FC_URL env variable");
+    }
+
     let settings = config_builder.build()?;
 
     settings.try_deserialize::<Settings>()
